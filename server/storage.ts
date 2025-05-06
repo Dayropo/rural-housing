@@ -1,7 +1,15 @@
 import { db } from "@db";
 import * as schema from "@shared/schema";
 import { eq, and, desc, asc, inArray, sql, like, or } from "drizzle-orm";
-import { InsertEmailSubscription, InsertCashOfferRequest, InsertProperty, InsertPropertyImage } from "@shared/schema";
+import { 
+  InsertEmailSubscription, 
+  InsertCashOfferRequest, 
+  InsertProperty, 
+  InsertPropertyImage,
+  InsertRentalApplication,
+  InsertApplicationSubmission,
+  InsertApplicationDocument
+} from "@shared/schema";
 
 export const storage = {
   // Property related functions

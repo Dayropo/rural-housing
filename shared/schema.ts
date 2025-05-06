@@ -127,6 +127,96 @@ export const testimonials = pgTable("testimonials", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Rental Applications table
+export const rentalApplications = pgTable("rental_applications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  currentAddress: text("current_address").notNull(),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  zipCode: text("zip_code").notNull(),
+  moveInDate: timestamp("move_in_date"),
+  monthlyIncome: integer("monthly_income").notNull(),
+  occupation: text("occupation").notNull(),
+  employer: text("employer"),
+  employmentLength: text("employment_length"),
+  creditScore: integer("credit_score"),
+  hasBeenEvicted: boolean("has_been_evicted").default(false).notNull(),
+  hasPets: boolean("has_pets").default(false).notNull(),
+  petDetails: text("pet_details"),
+  additionalOccupants: integer("additional_occupants").default(0).notNull(),
+  rentalHistory: text("rental_history"),
+  additionalNotes: text("additional_notes"),
+  status: text("status").default("active").notNull(), // active, expired, paused
+  isVerified: boolean("is_verified").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const rentalApplicationsRelations = relations(rentalApplications, ({ one, many }) => ({
+  user: one(users, {
+    fields: [rentalApplications.userId],
+    references: [users.id],
+  }),
+  submissions: many(applicationSubmissions),
+}));
+
+// Application Submissions table (connecting applications to properties)
+export const applicationSubmissions = pgTable("application_submissions", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("application_id").references(() => rentalApplications.id, { 
+    onDelete: "cascade" 
+  }).notNull(),
+  propertyId: integer("property_id").references(() => properties.id, { 
+    onDelete: "cascade" 
+  }).notNull(),
+  status: text("status").default("pending").notNull(), // pending, approved, rejected, withdrawn
+  message: text("message"),
+  reviewedById: integer("reviewed_by_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const applicationSubmissionsRelations = relations(applicationSubmissions, ({ one }) => ({
+  application: one(rentalApplications, {
+    fields: [applicationSubmissions.applicationId],
+    references: [rentalApplications.id],
+  }),
+  property: one(properties, {
+    fields: [applicationSubmissions.propertyId],
+    references: [properties.id],
+  }),
+  reviewedBy: one(users, {
+    fields: [applicationSubmissions.reviewedById],
+    references: [users.id],
+  }),
+}));
+
+// Document Uploads for Rental Applications
+export const applicationDocuments = pgTable("application_documents", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("application_id").references(() => rentalApplications.id, { 
+    onDelete: "cascade" 
+  }).notNull(),
+  documentType: text("document_type").notNull(), // id, income_proof, employment_verification, etc.
+  documentUrl: text("document_url").notNull(),
+  fileName: text("file_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+});
+
+export const applicationDocumentsRelations = relations(applicationDocuments, ({ one }) => ({
+  application: one(rentalApplications, {
+    fields: [applicationDocuments.applicationId],
+    references: [rentalApplications.id],
+  }),
+}));
+
 // Schema validation for properties
 export const insertPropertySchema = createInsertSchema(properties, {
   title: (schema) => schema.min(5, "Title must be at least 5 characters"),
@@ -165,3 +255,23 @@ export const insertTestimonialSchema = createInsertSchema(testimonials, {
 });
 export type InsertTestimonial = z.infer<typeof insertTestimonialSchema>;
 export type Testimonial = typeof testimonials.$inferSelect;
+
+// Schema validation for rental applications
+export const insertRentalApplicationSchema = createInsertSchema(rentalApplications, {
+  email: (schema) => schema.email("Must provide a valid email"),
+  phone: (schema) => schema.regex(/^\d{10}$/, "Phone number must be 10 digits"),
+  zipCode: (schema) => schema.regex(/^\d{5}$/, "ZIP code must be 5 digits"),
+  monthlyIncome: (schema) => schema.min(0, "Monthly income must be a positive number"),
+});
+export type InsertRentalApplication = z.infer<typeof insertRentalApplicationSchema>;
+export type RentalApplication = typeof rentalApplications.$inferSelect;
+
+// Schema validation for application submissions
+export const insertApplicationSubmissionSchema = createInsertSchema(applicationSubmissions);
+export type InsertApplicationSubmission = z.infer<typeof insertApplicationSubmissionSchema>;
+export type ApplicationSubmission = typeof applicationSubmissions.$inferSelect;
+
+// Schema validation for application documents
+export const insertApplicationDocumentSchema = createInsertSchema(applicationDocuments);
+export type InsertApplicationDocument = z.infer<typeof insertApplicationDocumentSchema>;
+export type ApplicationDocument = typeof applicationDocuments.$inferSelect;

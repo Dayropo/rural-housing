@@ -351,6 +351,260 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // RENTAL APPLICATIONS ROUTES
+  
+  // Get user's rental application
+  app.get("/api/rental-applications/my-application", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const application = await storage.getUserRentalApplication(userId);
+      return res.json(application || null);
+    } catch (error) {
+      console.error("Error fetching rental application:", error);
+      return res.status(500).json({ message: "Failed to fetch rental application" });
+    }
+  });
+  
+  // Create or update rental application
+  app.post("/api/rental-applications", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const applicationData = {
+        ...schema.insertRentalApplicationSchema.parse(req.body),
+        userId
+      };
+      
+      // Check if user already has an application
+      const existingApplication = await storage.getUserRentalApplication(userId);
+      
+      let application;
+      if (existingApplication) {
+        application = await storage.updateRentalApplication(existingApplication.id, applicationData);
+      } else {
+        application = await storage.createRentalApplication(applicationData);
+      }
+      
+      return res.status(201).json(application);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid application data", errors: error.errors });
+      }
+      console.error("Error creating rental application:", error);
+      return res.status(500).json({ message: "Failed to create rental application" });
+    }
+  });
+  
+  // Get all rental applications (admin only)
+  app.get("/api/rental-applications", requireAdmin, async (req, res) => {
+    try {
+      const applications = await storage.getAllRentalApplications();
+      return res.json(applications);
+    } catch (error) {
+      console.error("Error fetching rental applications:", error);
+      return res.status(500).json({ message: "Failed to fetch rental applications" });
+    }
+  });
+  
+  // Get specific rental application details
+  app.get("/api/rental-applications/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid application ID" });
+      }
+      
+      const application = await storage.getRentalApplicationById(id);
+      
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+      
+      // Only allow admin or the application owner to view details
+      if (!req.session.isAdmin && application.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Unauthorized to view this application" });
+      }
+      
+      return res.json(application);
+    } catch (error) {
+      console.error("Error fetching rental application:", error);
+      return res.status(500).json({ message: "Failed to fetch rental application" });
+    }
+  });
+  
+  // Submit application to a property
+  app.post("/api/rental-applications/:applicationId/submit", requireAuth, async (req, res) => {
+    try {
+      const applicationId = parseInt(req.params.applicationId);
+      if (isNaN(applicationId)) {
+        return res.status(400).json({ message: "Invalid application ID" });
+      }
+      
+      const application = await storage.getRentalApplicationById(applicationId);
+      
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+      
+      // Only allow the application owner to submit
+      if (application.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Unauthorized to submit this application" });
+      }
+      
+      const submissionSchema = z.object({
+        propertyId: z.number(),
+        message: z.string().optional(),
+      });
+      
+      const { propertyId, message } = submissionSchema.parse(req.body);
+      
+      // Check if property exists
+      const property = await storage.getPropertyById(propertyId);
+      if (!property) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+      
+      // Check if rental property
+      if (!property.isRental) {
+        return res.status(400).json({ message: "Property is not available for rent" });
+      }
+      
+      // Check if already submitted
+      const existingSubmission = await storage.getApplicationSubmission(applicationId, propertyId);
+      if (existingSubmission) {
+        return res.status(400).json({ message: "Already applied to this property" });
+      }
+      
+      const submission = await storage.createApplicationSubmission({
+        applicationId,
+        propertyId,
+        message: message || null,
+        status: 'pending'
+      });
+      
+      return res.status(201).json(submission);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid submission data", errors: error.errors });
+      }
+      console.error("Error submitting application:", error);
+      return res.status(500).json({ message: "Failed to submit application" });
+    }
+  });
+  
+  // Get user's application submissions
+  app.get("/api/rental-applications/my-submissions", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const submissions = await storage.getUserApplicationSubmissions(userId);
+      return res.json(submissions);
+    } catch (error) {
+      console.error("Error fetching application submissions:", error);
+      return res.status(500).json({ message: "Failed to fetch application submissions" });
+    }
+  });
+  
+  // Update application submission status (admin only)
+  app.patch("/api/application-submissions/:id/status", requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid submission ID" });
+      }
+      
+      const statusSchema = z.object({
+        status: z.enum(['pending', 'approved', 'rejected', 'withdrawn']),
+        message: z.string().optional(),
+      });
+      
+      const { status, message } = statusSchema.parse(req.body);
+      
+      const submission = await storage.updateApplicationSubmissionStatus(id, {
+        status,
+        message: message || null,
+        reviewedById: req.session.userId,
+        reviewedAt: new Date()
+      });
+      
+      return res.json(submission);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid status data", errors: error.errors });
+      }
+      console.error("Error updating submission status:", error);
+      return res.status(500).json({ message: "Failed to update submission status" });
+    }
+  });
+  
+  // Upload document for application
+  app.post("/api/rental-applications/:applicationId/documents", requireAuth, async (req, res) => {
+    try {
+      const applicationId = parseInt(req.params.applicationId);
+      if (isNaN(applicationId)) {
+        return res.status(400).json({ message: "Invalid application ID" });
+      }
+      
+      const application = await storage.getRentalApplicationById(applicationId);
+      
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+      
+      // Only allow the application owner to upload documents
+      if (application.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Unauthorized to modify this application" });
+      }
+      
+      const documentSchema = z.object({
+        documentType: z.string(),
+        documentUrl: z.string().url(),
+        fileName: z.string(),
+        fileSize: z.number().int().positive(),
+      });
+      
+      const documentData = documentSchema.parse(req.body);
+      
+      const document = await storage.addApplicationDocument({
+        applicationId,
+        ...documentData
+      });
+      
+      return res.status(201).json(document);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid document data", errors: error.errors });
+      }
+      console.error("Error uploading document:", error);
+      return res.status(500).json({ message: "Failed to upload document" });
+    }
+  });
+  
+  // Get documents for an application
+  app.get("/api/rental-applications/:applicationId/documents", requireAuth, async (req, res) => {
+    try {
+      const applicationId = parseInt(req.params.applicationId);
+      if (isNaN(applicationId)) {
+        return res.status(400).json({ message: "Invalid application ID" });
+      }
+      
+      const application = await storage.getRentalApplicationById(applicationId);
+      
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+      
+      // Only allow admin or the application owner to view documents
+      if (!req.session.isAdmin && application.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Unauthorized to view these documents" });
+      }
+      
+      const documents = await storage.getApplicationDocuments(applicationId);
+      return res.json(documents);
+    } catch (error) {
+      console.error("Error fetching application documents:", error);
+      return res.status(500).json({ message: "Failed to fetch application documents" });
+    }
+  });
+
   // AUTH ROUTES
   
   // Admin login
