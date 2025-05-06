@@ -32,8 +32,8 @@ export default function Footer() {
             <ul className="space-y-2">
               {FOOTER_LINKS.buyingAndSelling.map((link, index) => (
                 <li key={index}>
-                  <Link href={link.href}>
-                    <a className="text-neutral-300 hover:text-white">{link.label}</a>
+                  <Link href={link.href} className="text-neutral-300 hover:text-white">
+                    {link.label}
                   </Link>
                 </li>
               ))}
@@ -45,8 +45,8 @@ export default function Footer() {
             <ul className="space-y-2">
               {FOOTER_LINKS.rentals.map((link, index) => (
                 <li key={index}>
-                  <Link href={link.href}>
-                    <a className="text-neutral-300 hover:text-white">{link.label}</a>
+                  <Link href={link.href} className="text-neutral-300 hover:text-white">
+                    {link.label}
                   </Link>
                 </li>
               ))}

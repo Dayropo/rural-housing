@@ -35,10 +35,8 @@ export default function FeaturedListings() {
           <h2 className="text-2xl md:text-3xl font-bold text-neutral-500">
             Featured Rural Properties
           </h2>
-          <Link href="/buy">
-            <a className="text-primary font-semibold hover:underline hidden md:inline-block">
-              View all properties
-            </a>
+          <Link href="/buy" className="text-primary font-semibold hover:underline hidden md:inline-block">
+            View all properties
           </Link>
         </div>
         
@@ -70,10 +68,8 @@ export default function FeaturedListings() {
         
         {/* Mobile View All Link */}
         <div className="mt-6 text-center md:hidden">
-          <Link href="/buy">
-            <a className="text-primary font-semibold hover:underline">
-              View all properties
-            </a>
+          <Link href="/buy" className="text-primary font-semibold hover:underline">
+            View all properties
           </Link>
         </div>
       </div>
