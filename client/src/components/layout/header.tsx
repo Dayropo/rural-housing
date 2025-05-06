@@ -19,29 +19,30 @@ export default function Header() {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center">
-            <Link href="/">
-              <a className="flex items-center">
-                <div className="text-primary font-bold text-2xl flex items-center">
-                  <i className="fas fa-home mr-2"></i>
-                  <span>RuralHomes</span>
-                </div>
-              </a>
+            <Link href="/" className="flex items-center">
+              <div className="text-primary font-bold text-2xl flex items-center">
+                <i className="fas fa-home mr-2"></i>
+                <span>RuralHomes</span>
+              </div>
             </Link>
           </div>
 
           {/* Navigation - Desktop */}
           <nav className="hidden md:flex space-x-6">
-            <Link href="/buy">
-              <a className={isActive("/buy")}>Buy</a>
+            <Link href="/buy" className={isActive("/buy")}>
+              Buy
             </Link>
-            <Link href="/rent">
-              <a className={isActive("/rent")}>Rent</a>
+            <Link href="/rent" className={isActive("/rent")}>
+              Rent
             </Link>
-            <Link href="/sell">
-              <a className={isActive("/sell")}>Sell</a>
+            <Link href="/sell" className={isActive("/sell")}>
+              Sell
             </Link>
-            <Link href="/we-buy-houses">
-              <a className={isActive("/we-buy-houses")}>We Buy Houses</a>
+            <Link href="/we-buy-houses" className={isActive("/we-buy-houses")}>
+              We Buy Houses
+            </Link>
+            <Link href="/rental-application" className={isActive("/rental-application")}>
+              Rental Applications
             </Link>
           </nav>
 

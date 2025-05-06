@@ -33,17 +33,20 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
       id="mobile-menu"
     >
       <div className="container mx-auto px-4 flex flex-col space-y-4">
-        <Link href="/buy" onClick={handleNavigation}>
-          <a className="font-semibold text-neutral-500 hover:text-primary">Buy</a>
+        <Link href="/buy" onClick={handleNavigation} className="font-semibold text-neutral-500 hover:text-primary">
+          Buy
         </Link>
-        <Link href="/rent" onClick={handleNavigation}>
-          <a className="font-semibold text-neutral-500 hover:text-primary">Rent</a>
+        <Link href="/rent" onClick={handleNavigation} className="font-semibold text-neutral-500 hover:text-primary">
+          Rent
         </Link>
-        <Link href="/sell" onClick={handleNavigation}>
-          <a className="font-semibold text-neutral-500 hover:text-primary">Sell</a>
+        <Link href="/sell" onClick={handleNavigation} className="font-semibold text-neutral-500 hover:text-primary">
+          Sell
         </Link>
-        <Link href="/we-buy-houses" onClick={handleNavigation}>
-          <a className="font-semibold text-neutral-500 hover:text-primary">We Buy Houses</a>
+        <Link href="/we-buy-houses" onClick={handleNavigation} className="font-semibold text-neutral-500 hover:text-primary">
+          We Buy Houses
+        </Link>
+        <Link href="/rental-application" onClick={handleNavigation} className="font-semibold text-neutral-500 hover:text-primary">
+          Rental Applications
         </Link>
         <div className="flex flex-col space-y-2 pt-2 border-t border-neutral-300">
           <button className="font-semibold text-neutral-500 hover:text-primary text-left">
