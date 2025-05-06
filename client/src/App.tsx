@@ -14,6 +14,7 @@ import Rent from "@/pages/rent";
 import Sell from "@/pages/sell";
 import WeBuyHouses from "@/pages/we-buy-houses";
 import PropertyDetail from "@/pages/property-detail";
+import RentalApplication from "@/pages/rental-application";
 import AdminDashboard from "@/pages/admin/dashboard";
 import PropertyManagement from "@/pages/admin/property-management";
 import EditProperty from "@/pages/admin/edit-property";
@@ -32,6 +33,7 @@ function Router() {
         <Route path="/rent" component={Rent} />
         <Route path="/sell" component={Sell} />
         <Route path="/we-buy-houses" component={WeBuyHouses} />
+        <Route path="/rental-application" component={RentalApplication} />
         <Route path="/properties/:id">
           {(params) => <PropertyDetail id={params.id} />}
         </Route>

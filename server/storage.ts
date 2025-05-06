@@ -239,5 +239,121 @@ export const storage = {
       ),
     });
     return user;
+  },
+
+  // Rental Application methods
+  async getUserRentalApplication(userId: number) {
+    return db.query.rentalApplications.findFirst({
+      where: eq(schema.rentalApplications.userId, userId),
+      orderBy: [desc(schema.rentalApplications.updatedAt)]
+    });
+  },
+
+  async createRentalApplication(application: InsertRentalApplication) {
+    const [newApplication] = await db.insert(schema.rentalApplications).values(application).returning();
+    return newApplication;
+  },
+
+  async updateRentalApplication(id: number, application: Partial<InsertRentalApplication>) {
+    const [updatedApplication] = await db
+      .update(schema.rentalApplications)
+      .set({ ...application, updatedAt: new Date() })
+      .where(eq(schema.rentalApplications.id, id))
+      .returning();
+    return updatedApplication;
+  },
+
+  async getRentalApplicationById(id: number) {
+    return db.query.rentalApplications.findFirst({
+      where: eq(schema.rentalApplications.id, id)
+    });
+  },
+
+  async getAllRentalApplications() {
+    return db.query.rentalApplications.findMany({
+      orderBy: [desc(schema.rentalApplications.createdAt)],
+      with: {
+        user: true
+      }
+    });
+  },
+
+  // Application Submission methods
+  async createApplicationSubmission(submission: InsertApplicationSubmission) {
+    const [newSubmission] = await db.insert(schema.applicationSubmissions).values(submission).returning();
+    return newSubmission;
+  },
+
+  async getApplicationSubmission(applicationId: number, propertyId: number) {
+    return db.query.applicationSubmissions.findFirst({
+      where: and(
+        eq(schema.applicationSubmissions.applicationId, applicationId),
+        eq(schema.applicationSubmissions.propertyId, propertyId)
+      )
+    });
+  },
+
+  async getUserApplicationSubmissions(userId: number) {
+    // First get the user's applications
+    const applications = await db.query.rentalApplications.findMany({
+      where: eq(schema.rentalApplications.userId, userId)
+    });
+
+    if (applications.length === 0) {
+      return [];
+    }
+
+    const applicationIds = applications.map(app => app.id);
+
+    // Then get all submissions for those applications
+    const submissions = await db.query.applicationSubmissions.findMany({
+      where: inArray(schema.applicationSubmissions.applicationId, applicationIds),
+      orderBy: [desc(schema.applicationSubmissions.createdAt)],
+      with: {
+        property: {
+          with: {
+            images: {
+              where: eq(schema.propertyImages.displayOrder, 1)
+            }
+          }
+        },
+        application: true
+      }
+    });
+
+    return submissions;
+  },
+
+  async updateApplicationSubmissionStatus(id: number, updateData: {
+    status: string;
+    message: string | null;
+    reviewedById: number;
+    reviewedAt: Date;
+  }) {
+    const [updatedSubmission] = await db
+      .update(schema.applicationSubmissions)
+      .set({
+        status: updateData.status,
+        message: updateData.message,
+        reviewedById: updateData.reviewedById,
+        reviewedAt: updateData.reviewedAt,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.applicationSubmissions.id, id))
+      .returning();
+    return updatedSubmission;
+  },
+
+  // Application Document methods
+  async addApplicationDocument(document: InsertApplicationDocument) {
+    const [newDocument] = await db.insert(schema.applicationDocuments).values(document).returning();
+    return newDocument;
+  },
+
+  async getApplicationDocuments(applicationId: number) {
+    return db.query.applicationDocuments.findMany({
+      where: eq(schema.applicationDocuments.applicationId, applicationId),
+      orderBy: [desc(schema.applicationDocuments.uploadedAt)]
+    });
   }
 };

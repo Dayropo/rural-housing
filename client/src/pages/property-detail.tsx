@@ -6,6 +6,7 @@ import ImageGallery from "@/components/ui/image-gallery";
 import PropertyStatusBadge from "@/components/property/property-status-badge";
 import PropertyDetailsContent from "@/components/property/property-details-content";
 import PropertyContactForm from "@/components/property/property-contact-form";
+import ApplyRentalButton from "@/components/property/apply-rental-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatPrice } from "@/lib/utils";
@@ -142,8 +143,11 @@ export default function PropertyDetail({ id }: PropertyDetailProps) {
           <PropertyDetailsContent property={property} />
         </div>
 
-        {/* Contact Form */}
-        <div>
+        {/* Contact Form and Apply Button */}
+        <div className="space-y-6">
+          {property.isRental && property.status === "available" && (
+            <ApplyRentalButton property={property} />
+          )}
           <PropertyContactForm property={property} />
         </div>
       </div>
