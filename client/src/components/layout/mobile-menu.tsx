@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -7,6 +8,8 @@ interface MobileMenuProps {
 }
 
 export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
+  const { user, isAuthenticated, logout } = useAuth();
+
   // Close menu on navigation
   const handleNavigation = () => {
     onClose();
@@ -49,12 +52,39 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           Rental Applications
         </Link>
         <div className="flex flex-col space-y-2 pt-2 border-t border-neutral-300">
-          <button className="font-semibold text-neutral-500 hover:text-primary text-left">
-            Sign In
-          </button>
-          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-opacity-90 transition-all text-left">
-            Sign Up
-          </button>
+          {isAuthenticated ? (
+            <>
+              <Link href="/profile" onClick={handleNavigation} className="font-semibold text-neutral-500 hover:text-primary text-left">
+                Profile
+              </Link>
+              <Link href="/account" onClick={handleNavigation} className="font-semibold text-neutral-500 hover:text-primary text-left">
+                Account Settings
+              </Link>
+              {user?.isAdmin && (
+                <Link href="/admin" onClick={handleNavigation} className="font-semibold text-neutral-500 hover:text-primary text-left">
+                  Admin Dashboard
+                </Link>
+              )}
+              <button 
+                onClick={() => {
+                  logout();
+                  onClose();
+                }} 
+                className="font-semibold text-neutral-500 hover:text-primary text-left"
+              >
+                Log Out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" onClick={handleNavigation} className="font-semibold text-neutral-500 hover:text-primary text-left">
+                Sign In
+              </Link>
+              <Link href="/signup" onClick={handleNavigation} className="bg-primary text-white px-4 py-2 rounded hover:bg-opacity-90 transition-all text-left">
+                Sign Up
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </div>

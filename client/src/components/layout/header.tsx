@@ -1,16 +1,48 @@
-import { useState } from "react";
-import { Link, useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import MobileMenu from "./mobile-menu";
+import { useState } from "react"
+import { Link, useLocation } from "wouter"
+import { Button } from "@/components/ui/button"
+import MobileMenu from "./mobile-menu"
+import { useAuth } from "@/hooks/use-auth"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { LogOut, User, Settings } from "lucide-react"
 
 export default function Header() {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [location] = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [location] = useLocation()
+  const { user, isAuthenticated, logout } = useAuth()
 
   const isActive = (path: string) => {
-    return location === path 
-      ? "font-semibold text-primary" 
-      : "font-semibold text-neutral-500 hover:text-primary";
+    return location === path
+      ? "font-semibold text-primary"
+      : "font-semibold text-neutral-500 hover:text-primary"
+  }
+
+  // Get user initials for avatar fallback
+  const getUserInitials = () => {
+    if (!user) return "U";
+    
+    if (user.name) {
+      return user.name
+        .split(" ")
+        .map(part => part[0])
+        .join("")
+        .toUpperCase()
+        .substring(0, 2);
+    }
+    
+    return user.username.substring(0, 2).toUpperCase();
+  };
+
+  const handleLogout = async () => {
+    await logout();
   };
 
   return (
@@ -48,21 +80,63 @@ export default function Header() {
 
           {/* User Actions */}
           <div className="flex items-center space-x-4">
-            <Button 
-              variant="ghost" 
-              className="hidden md:block font-semibold text-neutral-500 hover:text-primary"
-            >
-              Sign In
-            </Button>
-            <Button 
-              className="hidden md:block bg-primary text-white hover:bg-opacity-90 transition-all"
-            >
-              Sign Up
-            </Button>
-            
+            {isAuthenticated ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                    <Avatar>
+                      <AvatarImage src={user?.avatar || ""} alt={user?.name || user?.username} />
+                      <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>
+                    <div className="font-medium">{user?.name || user?.username}</div>
+                    <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="cursor-pointer w-full flex items-center">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/account" className="cursor-pointer w-full flex items-center">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Account Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  {user?.isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" className="cursor-pointer w-full flex items-center">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Admin Dashboard</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Link href="/login">
+                <Button
+                  variant="ghost"
+                  className="hidden md:block font-semibold text-neutral-500 hover:text-primary"
+                >
+                  Sign In
+                </Button>
+              </Link>
+            )}
+
             {/* Mobile Menu Button */}
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="md:hidden text-neutral-500"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               aria-label="Toggle mobile menu"
@@ -76,5 +150,5 @@ export default function Header() {
       {/* Mobile Menu */}
       <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
     </header>
-  );
+  )
 }

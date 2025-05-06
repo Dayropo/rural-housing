@@ -1,359 +1,415 @@
-import { db } from "@db";
-import * as schema from "@shared/schema";
-import { eq, and, desc, asc, inArray, sql, like, or } from "drizzle-orm";
-import { 
-  InsertEmailSubscription, 
-  InsertCashOfferRequest, 
-  InsertProperty, 
-  InsertPropertyImage,
-  InsertRentalApplication,
-  InsertApplicationSubmission,
-  InsertApplicationDocument
-} from "@shared/schema";
+import bcrypt from 'bcryptjs';
+import prisma from './prisma';
 
-export const storage = {
-  // Property related functions
-  async getAllProperties() {
-    return db.query.properties.findMany({
-      orderBy: [desc(schema.properties.createdAt)],
-      with: {
-        images: {
-          orderBy: [asc(schema.propertyImages.displayOrder)],
-        },
-      },
+// Storage methods for database access
+export default {
+  // User methods
+  async getUserByUsernameOrEmail(usernameOrEmail: string) {
+    return prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: usernameOrEmail },
+          { email: usernameOrEmail }
+        ]
+      }
     });
+  },
+
+  async createUser(userData: {
+    username: string;
+    password: string;
+    email: string;
+    name?: string;
+    isAdmin?: boolean;
+  }) {
+    const hashedPassword = await bcrypt.hash(userData.password, 10);
+    return prisma.user.create({
+      data: {
+        ...userData,
+        password: hashedPassword
+      }
+    });
+  },
+
+  async getUserById(id: number) {
+    return prisma.user.findUnique({
+      where: { id }
+    });
+  },
+
+  // Property methods
+  async getProperties() {
+    const properties = await prisma.property.findMany({
+      include: {
+        images: {
+          orderBy: {
+            displayOrder: 'asc'
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    return properties;
   },
 
   async getFeaturedProperties() {
-    return db.query.properties.findMany({
-      where: eq(schema.properties.displayOnHomepage, true),
-      orderBy: [desc(schema.properties.createdAt)],
-      with: {
-        images: {
-          orderBy: [asc(schema.propertyImages.displayOrder)],
-        },
+    const properties = await prisma.property.findMany({
+      where: {
+        displayOnHomepage: true
       },
+      include: {
+        images: {
+          orderBy: {
+            displayOrder: 'asc'
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
     });
+    return properties;
   },
 
   async getPropertyById(id: number) {
-    return db.query.properties.findFirst({
-      where: eq(schema.properties.id, id),
-      with: {
+    const property = await prisma.property.findUnique({
+      where: { id },
+      include: {
         images: {
-          orderBy: [asc(schema.propertyImages.displayOrder)],
+          orderBy: {
+            displayOrder: 'asc'
+          }
         },
-      },
+        createdBy: true
+      }
     });
+    return property;
   },
 
   async searchProperties(searchParams: {
     query?: string;
-    status?: string;
-    type?: string;
+    city?: string;
+    state?: string;
     minPrice?: number;
     maxPrice?: number;
-    minBeds?: number;
-    minBaths?: number;
-    isRental?: boolean;
+    minBedrooms?: number;
+    maxBedrooms?: number;
+    minBathrooms?: number;
+    maxBathrooms?: number;
+    propertyType?: string;
+    status?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
   }) {
-    let baseQuery = db.select().from(schema.properties);
-
-    // Apply search query
+    // Build the where clause based on search parameters
+    const where: any = {};
+    
     if (searchParams.query) {
-      baseQuery = baseQuery.where(
-        or(
-          like(schema.properties.title, `%${searchParams.query}%`),
-          like(schema.properties.address, `%${searchParams.query}%`),
-          like(schema.properties.city, `%${searchParams.query}%`),
-          like(schema.properties.state, `%${searchParams.query}%`),
-          like(schema.properties.zipCode, `%${searchParams.query}%`),
-          like(schema.properties.description, `%${searchParams.query}%`)
-        )
-      );
+      where.OR = [
+        { title: { contains: searchParams.query, mode: 'insensitive' } },
+        { description: { contains: searchParams.query, mode: 'insensitive' } },
+        { address: { contains: searchParams.query, mode: 'insensitive' } },
+        { city: { contains: searchParams.query, mode: 'insensitive' } }
+      ];
     }
-
-    // Apply filters
-    if (searchParams.status && searchParams.status !== 'all') {
-      baseQuery = baseQuery.where(eq(schema.properties.status, searchParams.status));
+    
+    if (searchParams.city) {
+      where.city = { equals: searchParams.city, mode: 'insensitive' };
     }
-
-    if (searchParams.type && searchParams.type !== 'all') {
-      baseQuery = baseQuery.where(eq(schema.properties.propertyType, searchParams.type));
+    
+    if (searchParams.state) {
+      where.state = { equals: searchParams.state, mode: 'insensitive' };
     }
-
+    
     if (searchParams.minPrice) {
-      baseQuery = baseQuery.where(sql`${schema.properties.price} >= ${searchParams.minPrice}`);
+      where.price = { ...where.price, gte: searchParams.minPrice };
     }
-
+    
     if (searchParams.maxPrice) {
-      baseQuery = baseQuery.where(sql`${schema.properties.price} <= ${searchParams.maxPrice}`);
+      where.price = { ...where.price, lte: searchParams.maxPrice };
     }
-
-    if (searchParams.minBeds) {
-      baseQuery = baseQuery.where(sql`${schema.properties.bedrooms} >= ${searchParams.minBeds}`);
+    
+    if (searchParams.minBedrooms) {
+      where.bedrooms = { ...where.bedrooms, gte: searchParams.minBedrooms };
     }
-
-    if (searchParams.minBaths) {
-      baseQuery = baseQuery.where(sql`${schema.properties.bathrooms} >= ${searchParams.minBaths}`);
+    
+    if (searchParams.maxBedrooms) {
+      where.bedrooms = { ...where.bedrooms, lte: searchParams.maxBedrooms };
     }
-
-    if (searchParams.isRental !== undefined) {
-      baseQuery = baseQuery.where(eq(schema.properties.isRental, searchParams.isRental));
+    
+    if (searchParams.minBathrooms) {
+      where.bathrooms = { ...where.bathrooms, gte: searchParams.minBathrooms };
     }
-
-    // Execute query
-    const properties = await baseQuery.orderBy(desc(schema.properties.createdAt));
-
-    // Get images for all properties
-    const propertyIds = properties.map(p => p.id);
-    const allImages = await db.query.propertyImages.findMany({
-      where: inArray(schema.propertyImages.propertyId, propertyIds),
-      orderBy: [asc(schema.propertyImages.displayOrder)],
-    });
-
-    // Group images by property ID
-    const imagesByPropertyId = allImages.reduce((acc, img) => {
-      if (!acc[img.propertyId]) {
-        acc[img.propertyId] = [];
+    
+    if (searchParams.maxBathrooms) {
+      where.bathrooms = { ...where.bathrooms, lte: searchParams.maxBathrooms };
+    }
+    
+    if (searchParams.propertyType) {
+      where.propertyType = { equals: searchParams.propertyType };
+    }
+    
+    if (searchParams.status) {
+      where.status = { equals: searchParams.status };
+    }
+    
+    // Build the orderBy clause
+    let orderBy: any = { createdAt: 'desc' };
+    
+    if (searchParams.sortBy) {
+      const sortOrder = searchParams.sortOrder || 'asc';
+      
+      switch (searchParams.sortBy) {
+        case 'price':
+          orderBy = { price: sortOrder };
+          break;
+        case 'bedrooms':
+          orderBy = { bedrooms: sortOrder };
+          break;
+        case 'bathrooms':
+          orderBy = { bathrooms: sortOrder };
+          break;
+        case 'createdAt':
+          orderBy = { createdAt: sortOrder };
+          break;
+        case 'updatedAt':
+          orderBy = { updatedAt: sortOrder };
+          break;
+        case 'title':
+          orderBy = { title: sortOrder };
+          break;
       }
-      acc[img.propertyId].push(img);
-      return acc;
-    }, {} as Record<number, typeof allImages>);
-
-    // Combine properties with their images
-    return properties.map(property => ({
-      ...property,
-      images: imagesByPropertyId[property.id] || [],
-    }));
+    }
+    
+    // Execute the query with pagination
+    const properties = await prisma.property.findMany({
+      where,
+      orderBy,
+      skip: searchParams.offset,
+      take: searchParams.limit,
+      include: {
+        images: {
+          orderBy: {
+            displayOrder: 'asc'
+          }
+        }
+      }
+    });
+    
+    return properties;
   },
 
-  async createProperty(property: InsertProperty) {
-    const [newProperty] = await db.insert(schema.properties).values(property).returning();
-    return newProperty;
+  async createProperty(propertyData: any) {
+    return prisma.property.create({
+      data: propertyData,
+      include: {
+        images: true
+      }
+    });
   },
 
-  async updateProperty(id: number, property: Partial<InsertProperty>) {
-    const [updatedProperty] = await db
-      .update(schema.properties)
-      .set({ ...property, updatedAt: new Date() })
-      .where(eq(schema.properties.id, id))
-      .returning();
-    return updatedProperty;
+  async updateProperty(id: number, propertyData: any) {
+    return prisma.property.update({
+      where: { id },
+      data: propertyData,
+      include: {
+        images: true
+      }
+    });
   },
 
   async deleteProperty(id: number) {
-    // Property images will be deleted automatically due to ON DELETE CASCADE
-    return db.delete(schema.properties).where(eq(schema.properties.id, id)).returning();
+    // Property images will be deleted automatically due to the cascade delete in the schema
+    return prisma.property.delete({
+      where: { id }
+    });
   },
 
-  async updatePropertyStatus(id: number, status: string) {
-    const [updatedProperty] = await db
-      .update(schema.properties)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(schema.properties.id, id))
-      .returning();
-    return updatedProperty;
-  },
-
-  // Property Images related functions
-  async addPropertyImage(image: InsertPropertyImage) {
-    const [newImage] = await db.insert(schema.propertyImages).values(image).returning();
-    return newImage;
+  // Property Image methods
+  async addPropertyImage(imageData: any) {
+    return prisma.propertyImage.create({
+      data: imageData
+    });
   },
 
   async deletePropertyImage(id: number) {
-    return db.delete(schema.propertyImages).where(eq(schema.propertyImages.id, id)).returning();
-  },
-
-  async getPropertyImages(propertyId: number) {
-    return db.query.propertyImages.findMany({
-      where: eq(schema.propertyImages.propertyId, propertyId),
-      orderBy: [asc(schema.propertyImages.displayOrder)],
+    return prisma.propertyImage.delete({
+      where: { id }
     });
   },
 
-  // Email Subscriptions
-  async addEmailSubscription(subscription: InsertEmailSubscription) {
-    try {
-      const [newSubscription] = await db
-        .insert(schema.emailSubscriptions)
-        .values(subscription)
-        .returning();
-      return newSubscription;
-    } catch (error) {
-      // Handle duplicate email
-      if ((error as any).code === '23505') {
-        // Already exists, return existing
-        return db.query.emailSubscriptions.findFirst({
-          where: eq(schema.emailSubscriptions.email, subscription.email),
-        });
-      }
-      throw error;
-    }
+  async updatePropertyImageOrder(id: number, displayOrder: number) {
+    return prisma.propertyImage.update({
+      where: { id },
+      data: { displayOrder }
+    });
+  },
+
+  // Email Subscription methods
+  async addEmailSubscription(email: string) {
+    return prisma.emailSubscription.create({
+      data: { email }
+    });
   },
 
   async getEmailSubscriptions() {
-    return db.query.emailSubscriptions.findMany({
-      where: eq(schema.emailSubscriptions.isActive, true),
-      orderBy: [desc(schema.emailSubscriptions.createdAt)],
+    return prisma.emailSubscription.findMany({
+      where: { isActive: true }
     });
   },
 
-  // Cash Offer Requests
-  async addCashOfferRequest(request: InsertCashOfferRequest) {
-    const [newRequest] = await db.insert(schema.cashOfferRequests).values(request).returning();
-    return newRequest;
+  // Cash Offer Request methods
+  async createCashOfferRequest(requestData: any) {
+    return prisma.cashOfferRequest.create({
+      data: requestData
+    });
   },
 
   async getCashOfferRequests() {
-    return db.query.cashOfferRequests.findMany({
-      orderBy: [desc(schema.cashOfferRequests.createdAt)],
+    return prisma.cashOfferRequest.findMany({
+      orderBy: { createdAt: 'desc' }
     });
   },
 
-  async updateCashOfferRequestStatus(id: number, status: string) {
-    const [updatedRequest] = await db
-      .update(schema.cashOfferRequests)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(schema.cashOfferRequests.id, id))
-      .returning();
-    return updatedRequest;
+  // Testimonial methods
+  async createTestimonial(testimonialData: any) {
+    return prisma.testimonial.create({
+      data: testimonialData
+    });
   },
 
-  // Testimonials
-  async getActiveTestimonials() {
-    return db.query.testimonials.findMany({
-      where: eq(schema.testimonials.isActive, true),
-      orderBy: [desc(schema.testimonials.createdAt)],
+  async getTestimonials() {
+    return prisma.testimonial.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' }
     });
   },
 
   // Admin authentication helper (simplified for demo)
   async authenticateAdmin(username: string, password: string) {
-    const user = await db.query.users.findFirst({
-      where: and(
-        eq(schema.users.username, username),
-        eq(schema.users.password, password),
-        eq(schema.users.isAdmin, true)
-      ),
+    const user = await prisma.user.findFirst({
+      where: {
+        username,
+        isAdmin: true
+      }
     });
-    return user;
+    
+    if (user && await bcrypt.compare(password, user.password)) {
+      return user;
+    }
+    
+    return null;
   },
 
   // Rental Application methods
-  async getUserRentalApplication(userId: number) {
-    return db.query.rentalApplications.findFirst({
-      where: eq(schema.rentalApplications.userId, userId),
-      orderBy: [desc(schema.rentalApplications.updatedAt)]
+  async createRentalApplication(applicationData: any) {
+    return prisma.rentalApplication.create({
+      data: applicationData
     });
-  },
-
-  async createRentalApplication(application: InsertRentalApplication) {
-    const [newApplication] = await db.insert(schema.rentalApplications).values(application).returning();
-    return newApplication;
-  },
-
-  async updateRentalApplication(id: number, application: Partial<InsertRentalApplication>) {
-    const [updatedApplication] = await db
-      .update(schema.rentalApplications)
-      .set({ ...application, updatedAt: new Date() })
-      .where(eq(schema.rentalApplications.id, id))
-      .returning();
-    return updatedApplication;
   },
 
   async getRentalApplicationById(id: number) {
-    return db.query.rentalApplications.findFirst({
-      where: eq(schema.rentalApplications.id, id)
+    return prisma.rentalApplication.findUnique({
+      where: { id },
+      include: {
+        documents: true,
+        submissions: true
+      }
     });
   },
 
-  async getAllRentalApplications() {
-    return db.query.rentalApplications.findMany({
-      orderBy: [desc(schema.rentalApplications.createdAt)],
-      with: {
-        user: true
+  async getUserRentalApplication(userId: number) {
+    return prisma.rentalApplication.findFirst({
+      where: { userId },
+      include: {
+        documents: true,
+        submissions: true
       }
+    });
+  },
+
+  async updateRentalApplication(id: number, applicationData: any) {
+    return prisma.rentalApplication.update({
+      where: { id },
+      data: applicationData,
+      include: {
+        documents: true,
+        submissions: true
+      }
+    });
+  },
+
+  // Application Document methods
+  async addApplicationDocument(documentData: any) {
+    return prisma.applicationDocument.create({
+      data: documentData
+    });
+  },
+
+  async getApplicationDocuments(applicationId: number) {
+    return prisma.applicationDocument.findMany({
+      where: { applicationId },
+      orderBy: { uploadedAt: 'desc' }
     });
   },
 
   // Application Submission methods
-  async createApplicationSubmission(submission: InsertApplicationSubmission) {
-    const [newSubmission] = await db.insert(schema.applicationSubmissions).values(submission).returning();
-    return newSubmission;
+  async createApplicationSubmission(submissionData: any) {
+    return prisma.applicationSubmission.create({
+      data: submissionData
+    });
   },
 
-  async getApplicationSubmission(applicationId: number, propertyId: number) {
-    return db.query.applicationSubmissions.findFirst({
-      where: and(
-        eq(schema.applicationSubmissions.applicationId, applicationId),
-        eq(schema.applicationSubmissions.propertyId, propertyId)
-      )
+  async getApplicationSubmission(id: number) {
+    return prisma.applicationSubmission.findUnique({
+      where: { id },
+      include: {
+        application: true
+      }
     });
   },
 
   async getUserApplicationSubmissions(userId: number) {
-    // First get the user's applications
-    const applications = await db.query.rentalApplications.findMany({
-      where: eq(schema.rentalApplications.userId, userId)
+    return prisma.applicationSubmission.findMany({
+      where: {
+        application: {
+          userId
+        }
+      },
+      include: {
+        application: true
+      },
+      orderBy: { createdAt: 'desc' }
     });
+  },
 
-    if (applications.length === 0) {
-      return [];
-    }
-
-    const applicationIds = applications.map(app => app.id);
-
-    // Then get all submissions for those applications
-    const submissions = await db.query.applicationSubmissions.findMany({
-      where: inArray(schema.applicationSubmissions.applicationId, applicationIds),
-      orderBy: [desc(schema.applicationSubmissions.createdAt)],
-      with: {
-        property: {
-          with: {
-            images: {
-              where: eq(schema.propertyImages.displayOrder, 1)
-            }
-          }
-        },
+  async updateApplicationSubmission(id: number, submissionData: any) {
+    return prisma.applicationSubmission.update({
+      where: { id },
+      data: submissionData,
+      include: {
         application: true
       }
     });
-
-    return submissions;
   },
 
-  async updateApplicationSubmissionStatus(id: number, updateData: {
-    status: string;
-    message: string | null;
-    reviewedById: number;
-    reviewedAt: Date;
-  }) {
-    const [updatedSubmission] = await db
-      .update(schema.applicationSubmissions)
-      .set({
-        status: updateData.status,
-        message: updateData.message,
-        reviewedById: updateData.reviewedById,
-        reviewedAt: updateData.reviewedAt,
-        updatedAt: new Date()
-      })
-      .where(eq(schema.applicationSubmissions.id, id))
-      .returning();
-    return updatedSubmission;
-  },
-
-  // Application Document methods
-  async addApplicationDocument(document: InsertApplicationDocument) {
-    const [newDocument] = await db.insert(schema.applicationDocuments).values(document).returning();
-    return newDocument;
-  },
-
-  async getApplicationDocuments(applicationId: number) {
-    return db.query.applicationDocuments.findMany({
-      where: eq(schema.applicationDocuments.applicationId, applicationId),
-      orderBy: [desc(schema.applicationDocuments.uploadedAt)]
+  async reviewApplicationSubmission(id: number, reviewedById: number, status: string, notes?: string) {
+    return prisma.applicationSubmission.update({
+      where: { id },
+      data: {
+        status,
+        notes,
+        reviewedById,
+        reviewedAt: new Date()
+      },
+      include: {
+        application: true,
+        reviewedBy: true
+      }
     });
   }
 };

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useForm } from "react-hook-form";
+import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -72,83 +72,84 @@ export default function PropertyForm({ property }: PropertyFormProps) {
   
   const [activeTab, setActiveTab] = useState("basic-info");
   
+  const defaultValues: FormData = property ? {
+    title: property.title,
+    address: property.address,
+    city: property.city,
+    state: property.state,
+    zipCode: property.zipCode,
+    price: property.price,
+    bedrooms: property.bedrooms,
+    bathrooms: property.bathrooms,
+    squareFeet: property.squareFeet,
+    description: property.description,
+    propertyType: property.propertyType,
+    status: property.status,
+    isRental: property.isRental,
+    rentalPrice: property.rentalPrice || undefined,
+    featuredImage: property.featuredImage || undefined,
+    acres: property.acres || undefined,
+    yearBuilt: property.yearBuilt || undefined,
+    displayOnHomepage: property.displayOnHomepage,
+  } : {
+    title: "",
+    address: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    price: 0,
+    bedrooms: 0,
+    bathrooms: 0,
+    squareFeet: 0,
+    description: "",
+    propertyType: "",
+    status: "available",
+    isRental: false,
+    rentalPrice: 0,
+    featuredImage: "",
+    acres: "",
+    yearBuilt: undefined,
+    displayOnHomepage: false,
+  };
+  
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: isEditing
-      ? {
-          ...property,
-          price: property.price || 0,
-          rentalPrice: property.rentalPrice || 0,
-          yearBuilt: property.yearBuilt || undefined,
+    defaultValues,
+  });
+  
+  const onSubmit: SubmitHandler<FormData> = async (data) => {
+    try {
+      // Prepare the data
+      const formData = new FormData();
+      
+      // Add all form fields
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          formData.append(key, value.toString());
         }
-      : {
-          title: "",
-          address: "",
-          city: "",
-          state: "",
-          zipCode: "",
-          price: 0,
-          bedrooms: 0,
-          bathrooms: 0,
-          squareFeet: 0,
-          description: "",
-          propertyType: "house",
-          status: "available",
-          isRental: false,
-          acres: "",
-          displayOnHomepage: false,
-        },
-  });
-  
-  const createMutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      const response = await apiRequest("POST", "/api/properties", data);
-      return response.json();
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Property created",
-        description: "The property has been successfully created",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
-      navigate(`/admin/properties/${data.id}/edit`);
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create property",
-        variant: "destructive",
+      
+      // Make API call
+      const endpoint = property 
+        ? `/api/properties/${property.id}` 
+        : "/api/properties";
+      
+      const method = property ? "PUT" : "POST";
+      
+      const response = await fetch(endpoint, {
+        method,
+        body: formData,
       });
-    },
-  });
-  
-  const updateMutation = useMutation({
-    mutationFn: async (data: { id: number; formData: FormData }) => {
-      const response = await apiRequest("PUT", `/api/properties/${data.id}`, data.formData);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Property updated",
-        description: "The property has been successfully updated",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/properties/${property?.id}`] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update property",
-        variant: "destructive",
-      });
-    },
-  });
-  
-  const onSubmit = (data: FormData) => {
-    if (isEditing && property) {
-      updateMutation.mutate({ id: property.id, formData: data });
-    } else {
-      createMutation.mutate(data);
+      
+      if (!response.ok) {
+        throw new Error("Failed to save property");
+      }
+      
+      // Redirect to property management page
+      navigate("/admin/properties");
+      
+    } catch (error) {
+      console.error("Error saving property:", error);
     }
   };
   
@@ -566,18 +567,8 @@ export default function PropertyForm({ property }: PropertyFormProps) {
                   <Button type="button" variant="outline" onClick={() => setActiveTab("details")}>
                     Back
                   </Button>
-                  <Button 
-                    type="submit"
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                  >
-                    {createMutation.isPending || updateMutation.isPending ? (
-                      <>
-                        <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                        {isEditing ? "Updating..." : "Creating..."}
-                      </>
-                    ) : (
-                      isEditing ? "Update Property" : "Create Property"
-                    )}
+                  <Button type="submit">
+                    {isEditing ? "Update Property" : "Create Property"}
                   </Button>
                 </div>
               </TabsContent>

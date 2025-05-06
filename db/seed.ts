@@ -1,31 +1,35 @@
-import { db } from "./index";
-import * as schema from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { PrismaClient } from "../generated/prisma";
+
+const prisma = new PrismaClient();
 
 async function seed() {
   try {
     console.log("Seeding database...");
 
     // Check if admin user exists
-    const existingAdmin = await db.query.users.findFirst({
-      where: eq(schema.users.username, "admin")
+    const existingAdmin = await prisma.user.findFirst({
+      where: {
+        username: "admin"
+      }
     });
 
     // Create admin user if it doesn't exist
     if (!existingAdmin) {
       console.log("Creating admin user...");
-      await db.insert(schema.users).values({
-        username: "admin",
-        password: "admin123", // In a real app, this should be hashed
-        email: "admin@ruralhomes.com",
-        name: "Admin User",
-        isAdmin: true
+      await prisma.user.create({
+        data: {
+          username: "admin",
+          password: "admin123", // In a real app, this should be hashed
+          email: "admin@ruralhomes.com",
+          name: "Admin User",
+          isAdmin: true
+        }
       });
     }
 
     // Seed properties if none exist
-    const existingProperties = await db.query.properties.findMany({
-      limit: 1
+    const existingProperties = await prisma.property.findMany({
+      take: 1
     });
 
     if (existingProperties.length === 0) {
@@ -66,7 +70,7 @@ async function seed() {
           propertyType: "cabin",
           status: "pending",
           isRental: false,
-          featuredImage: "https://images.unsplash.com/photo-1595521624992-36a5229ef740?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80",
+          featuredImage: "https://images.unsplash.com/photo-1709413400511-34243a6a932e?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80",
           acres: "3",
           yearBuilt: 1990,
           displayOnHomepage: true
@@ -131,39 +135,51 @@ async function seed() {
         }
       ];
 
-      // Insert properties
+      // Insert properties one by one to get their IDs for images
       for (const property of properties) {
-        const [newProperty] = await db.insert(schema.properties).values(property).returning();
+        // Add createdById for Prisma foreign key requirement
+        const propertyWithCreator = {
+          ...property,
+          createdBy: {
+            connect: { id: 1 } // Connect to admin user
+          }
+        };
+
+        const createdProperty = await prisma.property.create({
+          data: propertyWithCreator as any // Type assertion to handle potential schema differences
+        });
         
         // Add additional images for each property
         const images = [
           {
-            propertyId: newProperty.id,
-            imageUrl: newProperty.featuredImage,
+            propertyId: createdProperty.id,
+            imageUrl: property.featuredImage,
             displayOrder: 1,
             caption: "Exterior view"
           },
           {
-            propertyId: newProperty.id,
+            propertyId: createdProperty.id,
             imageUrl: "https://images.unsplash.com/photo-1560185007-cde436f6a4d0?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
             displayOrder: 2,
             caption: "Living room"
           },
           {
-            propertyId: newProperty.id,
+            propertyId: createdProperty.id,
             imageUrl: "https://images.unsplash.com/photo-1560185127-6ed189bf02f4?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
             displayOrder: 3,
             caption: "Kitchen area"
           }
         ];
         
-        await db.insert(schema.propertyImages).values(images);
+        await prisma.propertyImage.createMany({
+          data: images
+        });
       }
     }
 
     // Seed testimonials if none exist
-    const existingTestimonials = await db.query.testimonials.findMany({
-      limit: 1
+    const existingTestimonials = await prisma.testimonial.findMany({
+      take: 1
     });
 
     if (existingTestimonials.length === 0) {
@@ -193,12 +209,16 @@ async function seed() {
         }
       ];
       
-      await db.insert(schema.testimonials).values(testimonials);
+      await prisma.testimonial.createMany({
+        data: testimonials
+      });
     }
 
     console.log("Seeding completed successfully");
   } catch (error) {
     console.error("Error seeding database:", error);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 

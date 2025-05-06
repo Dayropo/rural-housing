@@ -1,0 +1,6 @@
+Use pnpm for package management
+Use tanstack-query for data fetching
+Use shadcn for ui components
+Use tailwindcss for styling
+Use sonner for notifications
+Use prisma for database

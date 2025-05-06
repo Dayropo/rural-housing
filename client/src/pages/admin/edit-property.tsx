@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -7,14 +6,24 @@ import PropertyForm from "@/components/admin/property-form";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft } from "lucide-react";
+import { RouteComponentProps } from "wouter";
+import { useEffect } from "react";
+import { Property } from "@shared/schema";
 
-interface EditPropertyProps {
+// Define a type for the route parameters
+type EditPropertyParams = {
+  id: string;
+};
+
+// Extend RouteComponentProps with the specific params type
+interface EditPropertyProps extends RouteComponentProps<EditPropertyParams> {
   id?: string;
 }
 
-export default function EditProperty({ id }: EditPropertyProps) {
+export default function EditProperty(props: EditPropertyProps) {
   const { isAuthenticated, isAuthenticating } = useAuth();
   const [, navigate] = useLocation();
+  const id = props.id || props.params?.id;
   const isNewProperty = !id;
   
   useEffect(() => {
@@ -25,9 +34,47 @@ export default function EditProperty({ id }: EditPropertyProps) {
   
   const propertyId = id ? parseInt(id) : undefined;
   
-  const { data: property, isLoading } = useQuery({
-    queryKey: propertyId ? [`/api/properties/${propertyId}`] : null,
-    enabled: isAuthenticated && !!propertyId,
+  const { data: property, isLoading } = useQuery<Property>({
+    queryKey: propertyId ? [`/api/properties/${propertyId}`] : ['empty-property'],
+    queryFn: async () => {
+      if (!propertyId) {
+        return {
+          id: 0,
+          title: '',
+          address: '',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          status: 'available',
+          city: '',
+          state: '',
+          zipCode: '',
+          price: 0,
+          bedrooms: 0,
+          bathrooms: 0,
+          squareFeet: 0,
+          description: '',
+          propertyType: '',
+          yearBuilt: 0,
+          lotSize: 0,
+          featured: false,
+          location: '',
+          type: '',
+          slug: '',
+          displayOnHomepage: false,
+          isRental: false,
+          rentalPrice: 0,
+          featuredImage: '',
+          createdById: 0,
+          acres: ''
+        } as Property;
+      }
+      const response = await fetch(`/api/properties/${propertyId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch property');
+      }
+      return response.json();
+    },
+    enabled: isAuthenticated && (!!propertyId || isNewProperty),
   });
   
   if (isAuthenticating) {

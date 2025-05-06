@@ -1,7 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
 
 // Property types and statuses constants
 export const PROPERTY_TYPES = [
@@ -22,256 +19,221 @@ export const PROPERTY_STATUSES = [
   { value: "unavailable", label: "Unavailable" }
 ];
 
-// Users table
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").notNull().unique(),
-  name: text("name"),
-  isAdmin: boolean("is_admin").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+// Define interfaces for our models
+export interface User {
+  id: number;
+  createdAt: Date;
+  updatedAt: Date;
+  username: string;
+  password?: string;
+  email: string;
+  name?: string | null;
+  isAdmin: boolean;
+  avatar?: string | null;
+}
+
+// Define the Property type to match the expected structure in the application
+export interface Property {
+  id: number;
+  title: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  price: number;
+  bedrooms: number;
+  bathrooms: number;
+  squareFeet: number;
+  description: string;
+  propertyType: string;
+  status: string;
+  isRental: boolean;
+  rentalPrice?: number | null;
+  featuredImage?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  createdById?: number | null;
+  acres?: string | null;
+  yearBuilt?: number | null;
+  displayOnHomepage: boolean;
+  images?: PropertyImage[];
+}
+
+export interface PropertyImage {
+  id: number;
+  createdAt: Date;
+  propertyId: number;
+  imageUrl: string;
+  caption?: string | null;
+  displayOrder: number;
+}
+
+export interface EmailSubscription {
+  id: number;
+  createdAt: Date;
+  email: string;
+  name?: string | null;
+  isActive: boolean;
+}
+
+export interface CashOfferRequest {
+  id: number;
+  createdAt: Date;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  propertyType: string;
+  bedrooms: number;
+  bathrooms: number;
+  squareFeet: number;
+  timeframe: string;
+  additionalInfo?: string | null;
+  status: string;
+}
+
+export interface Testimonial {
+  id: number;
+  createdAt: Date;
+  name: string;
+  location?: string | null;
+  text: string;
+  rating: number;
+  isApproved: boolean;
+  displayOnHomepage: boolean;
+}
+
+export interface RentalApplication {
+  id: number;
+  createdAt: Date;
+  title: string;
+  description: string;
+  fee: number;
+  isActive: boolean;
+}
+
+export interface ApplicationSubmission {
+  id: number;
+  createdAt: Date;
+  applicationId: number;
+  name: string;
+  email: string;
+  phone: string;
+  status: string;
+  propertyId?: number | null;
+}
+
+export interface ApplicationDocument {
+  id: number;
+  createdAt: Date;
+  submissionId: number;
+  documentType: string;
+  fileUrl: string;
+}
+
+// Zod schemas for validation
+export const userSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email("Invalid email address"),
+  name: z.string().optional(),
+  isAdmin: z.boolean().default(false),
+  avatar: z.string().optional().nullable()
 });
 
-export const insertUserSchema = createInsertSchema(users, {
-  username: (schema) => schema.min(3, "Username must be at least 3 characters"),
-  password: (schema) => schema.min(6, "Password must be at least 6 characters"),
-  email: (schema) => schema.email("Must provide a valid email"),
+export const propertySchema = z.object({
+  title: z.string().min(3, "Title must be at least 3 characters"),
+  address: z.string().min(3, "Address must be at least 3 characters"),
+  city: z.string().min(2, "City must be at least 2 characters"),
+  state: z.string().min(2, "State must be at least 2 characters"),
+  zipCode: z.string().min(5, "Zip code must be at least 5 characters"),
+  price: z.number().min(1, "Price must be greater than 0"),
+  bedrooms: z.number().min(0, "Bedrooms must be 0 or greater"),
+  bathrooms: z.number().min(0, "Bathrooms must be 0 or greater"),
+  squareFeet: z.number().min(1, "Square feet must be greater than 0"),
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  propertyType: z.string().min(1, "Property type is required"),
+  status: z.string().min(1, "Status is required"),
+  isRental: z.boolean(),
+  rentalPrice: z.number().optional().nullable(),
+  featuredImage: z.string().optional().nullable(),
+  acres: z.string().optional().nullable(),
+  yearBuilt: z.number().optional().nullable(),
+  displayOnHomepage: z.boolean().default(false)
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
-
-// Properties table
-export const properties = pgTable("properties", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  address: text("address").notNull(),
-  city: text("city").notNull(),
-  state: text("state").notNull(),
-  zipCode: text("zip_code").notNull(),
-  price: integer("price").notNull(),
-  bedrooms: integer("bedrooms").notNull(),
-  bathrooms: integer("bathrooms").notNull(),
-  squareFeet: integer("square_feet").notNull(),
-  description: text("description").notNull(),
-  propertyType: text("property_type").notNull(), // house, cabin, land, farm, etc.
-  status: text("status").notNull().default("available"), // available, pending, sold, rented
-  isRental: boolean("is_rental").default(false).notNull(),
-  rentalPrice: integer("rental_price"),
-  featuredImage: text("featured_image"), // URL to the main image
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdById: integer("created_by_id").references(() => users.id),
-  acres: text("acres"),
-  yearBuilt: integer("year_built"),
-  displayOnHomepage: boolean("display_on_homepage").default(false).notNull(),
+export const propertyImageSchema = z.object({
+  propertyId: z.number(),
+  imageUrl: z.string(),
+  caption: z.string().optional(),
+  displayOrder: z.number().default(0),
+  id: z.number().optional()
 });
 
-export const propertiesRelations = relations(properties, ({ one, many }) => ({
-  createdBy: one(users, {
-    fields: [properties.createdById],
-    references: [users.id],
-  }),
-  images: many(propertyImages),
-}));
-
-// Property Images table
-export const propertyImages = pgTable("property_images", {
-  id: serial("id").primaryKey(),
-  propertyId: integer("property_id").notNull().references(() => properties.id, { 
-    onDelete: "cascade" 
-  }),
-  imageUrl: text("image_url").notNull(),
-  caption: text("caption"),
-  displayOrder: integer("display_order").default(0).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const emailSubscriptionSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  name: z.string().optional(),
+  isActive: z.boolean().default(true)
 });
 
-export const propertyImagesRelations = relations(propertyImages, ({ one }) => ({
-  property: one(properties, {
-    fields: [propertyImages.propertyId],
-    references: [properties.id],
-  }),
-}));
-
-// Email Subscriptions table
-export const emailSubscriptions = pgTable("email_subscriptions", {
-  id: serial("id").primaryKey(),
-  email: text("email").notNull().unique(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  isActive: boolean("is_active").default(true).notNull(),
+export const cashOfferRequestSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone must be at least 10 characters"),
+  address: z.string().min(3, "Address must be at least 3 characters"),
+  city: z.string().min(2, "City must be at least 2 characters"),
+  state: z.string().min(2, "State must be at least 2 characters"),
+  zipCode: z.string().min(5, "Zip code must be at least 5 characters"),
+  propertyType: z.string().min(1, "Property type is required"),
+  bedrooms: z.number().min(0, "Bedrooms must be 0 or greater"),
+  bathrooms: z.number().min(0, "Bathrooms must be 0 or greater"),
+  squareFeet: z.number().min(1, "Square feet must be greater than 0"),
+  timeframe: z.string().min(1, "Timeframe is required"),
+  additionalInfo: z.string().optional().nullable(),
+  status: z.string().default("pending")
 });
 
-// Cash Offer Requests (We Buy Houses)
-export const cashOfferRequests = pgTable("cash_offer_requests", {
-  id: serial("id").primaryKey(),
-  propertyAddress: text("property_address").notNull(),
-  name: text("name").notNull(),
-  email: text("email").notNull(),
-  phone: text("phone").notNull(),
-  message: text("message"),
-  status: text("status").default("new").notNull(), // new, contacted, in_progress, completed, declined
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+export const testimonialSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  location: z.string().optional().nullable(),
+  text: z.string().min(10, "Testimonial must be at least 10 characters"),
+  rating: z.number().min(1, "Rating must be between 1 and 5").max(5, "Rating must be between 1 and 5"),
+  isApproved: z.boolean().default(false),
+  displayOnHomepage: z.boolean().default(false)
 });
 
-// Testimonials table
-export const testimonials = pgTable("testimonials", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  location: text("location"),
-  rating: integer("rating").notNull(),
-  comment: text("comment").notNull(),
-  isActive: boolean("is_active").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const rentalApplicationSchema = z.object({
+  title: z.string().min(3, "Title must be at least 3 characters"),
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  fee: z.number().min(0, "Fee must be 0 or greater"),
+  isActive: z.boolean().default(true)
 });
 
-// Rental Applications table
-export const rentalApplications = pgTable("rental_applications", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  email: text("email").notNull(),
-  phone: text("phone").notNull(),
-  currentAddress: text("current_address").notNull(),
-  city: text("city").notNull(),
-  state: text("state").notNull(),
-  zipCode: text("zip_code").notNull(),
-  moveInDate: timestamp("move_in_date"),
-  monthlyIncome: integer("monthly_income").notNull(),
-  occupation: text("occupation").notNull(),
-  employer: text("employer"),
-  employmentLength: text("employment_length"),
-  creditScore: integer("credit_score"),
-  hasBeenEvicted: boolean("has_been_evicted").default(false).notNull(),
-  hasPets: boolean("has_pets").default(false).notNull(),
-  petDetails: text("pet_details"),
-  additionalOccupants: integer("additional_occupants").default(0).notNull(),
-  rentalHistory: text("rental_history"),
-  additionalNotes: text("additional_notes"),
-  status: text("status").default("active").notNull(), // active, expired, paused
-  isVerified: boolean("is_verified").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+export const applicationSubmissionSchema = z.object({
+  applicationId: z.number(),
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone must be at least 10 characters"),
+  status: z.string().default("pending"),
+  propertyId: z.number().optional().nullable()
 });
 
-export const rentalApplicationsRelations = relations(rentalApplications, ({ one, many }) => ({
-  user: one(users, {
-    fields: [rentalApplications.userId],
-    references: [users.id],
-  }),
-  submissions: many(applicationSubmissions),
-}));
-
-// Application Submissions table (connecting applications to properties)
-export const applicationSubmissions = pgTable("application_submissions", {
-  id: serial("id").primaryKey(),
-  applicationId: integer("application_id").references(() => rentalApplications.id, { 
-    onDelete: "cascade" 
-  }).notNull(),
-  propertyId: integer("property_id").references(() => properties.id, { 
-    onDelete: "cascade" 
-  }).notNull(),
-  status: text("status").default("pending").notNull(), // pending, approved, rejected, withdrawn
-  message: text("message"),
-  reviewedById: integer("reviewed_by_id").references(() => users.id),
-  reviewedAt: timestamp("reviewed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+export const applicationDocumentSchema = z.object({
+  submissionId: z.number(),
+  documentType: z.string().min(1, "Document type is required"),
+  fileUrl: z.string().min(1, "File URL is required")
 });
 
-export const applicationSubmissionsRelations = relations(applicationSubmissions, ({ one }) => ({
-  application: one(rentalApplications, {
-    fields: [applicationSubmissions.applicationId],
-    references: [rentalApplications.id],
-  }),
-  property: one(properties, {
-    fields: [applicationSubmissions.propertyId],
-    references: [properties.id],
-  }),
-  reviewedBy: one(users, {
-    fields: [applicationSubmissions.reviewedById],
-    references: [users.id],
-  }),
-}));
-
-// Document Uploads for Rental Applications
-export const applicationDocuments = pgTable("application_documents", {
-  id: serial("id").primaryKey(),
-  applicationId: integer("application_id").references(() => rentalApplications.id, { 
-    onDelete: "cascade" 
-  }).notNull(),
-  documentType: text("document_type").notNull(), // id, income_proof, employment_verification, etc.
-  documentUrl: text("document_url").notNull(),
-  fileName: text("file_name").notNull(),
-  fileSize: integer("file_size").notNull(),
-  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
-});
-
-export const applicationDocumentsRelations = relations(applicationDocuments, ({ one }) => ({
-  application: one(rentalApplications, {
-    fields: [applicationDocuments.applicationId],
-    references: [rentalApplications.id],
-  }),
-}));
-
-// Schema validation for properties
-export const insertPropertySchema = createInsertSchema(properties, {
-  title: (schema) => schema.min(5, "Title must be at least 5 characters"),
-  description: (schema) => schema.min(10, "Description must be at least 10 characters"),
-  price: (schema) => schema.min(0, "Price must be a positive number"),
-  zipCode: (schema) => schema.regex(/^\d{5}$/, "ZIP code must be 5 digits"),
-});
-
-export type InsertProperty = z.infer<typeof insertPropertySchema>;
-export type Property = typeof properties.$inferSelect;
-
-// Schema validation for property images
-export const insertPropertyImageSchema = createInsertSchema(propertyImages);
-export type InsertPropertyImage = z.infer<typeof insertPropertyImageSchema>;
-export type PropertyImage = typeof propertyImages.$inferSelect;
-
-// Schema validation for email subscriptions
-export const insertEmailSubscriptionSchema = createInsertSchema(emailSubscriptions, {
-  email: (schema) => schema.email("Must provide a valid email"),
-});
-export type InsertEmailSubscription = z.infer<typeof insertEmailSubscriptionSchema>;
-export type EmailSubscription = typeof emailSubscriptions.$inferSelect;
-
-// Schema validation for cash offer requests
-export const insertCashOfferRequestSchema = createInsertSchema(cashOfferRequests, {
-  email: (schema) => schema.email("Must provide a valid email"),
-  phone: (schema) => schema.regex(/^\d{10}$/, "Phone number must be 10 digits"),
-});
-export type InsertCashOfferRequest = z.infer<typeof insertCashOfferRequestSchema>;
-export type CashOfferRequest = typeof cashOfferRequests.$inferSelect;
-
-// Schema validation for testimonials
-export const insertTestimonialSchema = createInsertSchema(testimonials, {
-  rating: (schema) => schema.min(1).max(5, "Rating must be between 1 and 5"),
-  comment: (schema) => schema.min(10, "Comment must be at least 10 characters"),
-});
-export type InsertTestimonial = z.infer<typeof insertTestimonialSchema>;
-export type Testimonial = typeof testimonials.$inferSelect;
-
-// Schema validation for rental applications
-export const insertRentalApplicationSchema = createInsertSchema(rentalApplications, {
-  email: (schema) => schema.email("Must provide a valid email"),
-  phone: (schema) => schema.regex(/^\d{10}$/, "Phone number must be 10 digits"),
-  zipCode: (schema) => schema.regex(/^\d{5}$/, "ZIP code must be 5 digits"),
-  monthlyIncome: (schema) => schema.min(0, "Monthly income must be a positive number"),
-});
-export type InsertRentalApplication = z.infer<typeof insertRentalApplicationSchema>;
-export type RentalApplication = typeof rentalApplications.$inferSelect;
-
-// Schema validation for application submissions
-export const insertApplicationSubmissionSchema = createInsertSchema(applicationSubmissions);
-export type InsertApplicationSubmission = z.infer<typeof insertApplicationSubmissionSchema>;
-export type ApplicationSubmission = typeof applicationSubmissions.$inferSelect;
-
-// Schema validation for application documents
-export const insertApplicationDocumentSchema = createInsertSchema(applicationDocuments);
-export type InsertApplicationDocument = z.infer<typeof insertApplicationDocumentSchema>;
-export type ApplicationDocument = typeof applicationDocuments.$inferSelect;
+// Backward compatibility aliases for schema validation functions
+export const validateUser = userSchema.parse;
+export const validateProperty = propertySchema.parse;
+export const validatePropertyImage = propertyImageSchema.parse;
+export const validateEmailSubscription = emailSubscriptionSchema.parse;
+export const validateCashOfferRequest = cashOfferRequestSchema.parse;
+export const validateTestimonial = testimonialSchema.parse;
+export const validateRentalApplication = rentalApplicationSchema.parse;
+export const validateApplicationSubmission = applicationSubmissionSchema.parse;
+export const validateApplicationDocument = applicationDocumentSchema.parse;
